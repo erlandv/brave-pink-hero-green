@@ -13,24 +13,19 @@
 	const alertBox = document.getElementById('alert');
 	const resultNote = document.getElementById('result-note');
 	const placeholder = document.getElementById('placeholder');
-
-	const ctx = canvas.getContext('2d', {
-		willReadFrequently: true
-	});
+	const canvasWrap = document.getElementById('canvas-wrap');
+	const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
 	let sourceBitmap = null;
 	let sourceName = null;
 	let sourceType = null;
 	let resultBlob = null;
+	let baElem = null;
 
 	function hexToRgb(hex) {
 		const s = hex.replace('#', '').trim();
 		const n = parseInt(s, 16);
-		return {
-			r: (n >> 16) & 255,
-			g: (n >> 8) & 255,
-			b: n & 255
-		};
+		return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
 	}
 
 	function srgbToLinearByte(c) {
@@ -43,21 +38,11 @@
 		return Math.max(0, Math.min(255, Math.round(v * 255)));
 	}
 
-	function rgbToLinear({
-		r,
-		g,
-		b
-	}) {
-		return {
-			r: srgbToLinearByte(r),
-			g: srgbToLinearByte(g),
-			b: srgbToLinearByte(b)
-		};
+	function rgbToLinear({ r, g, b }) {
+		return { r: srgbToLinearByte(r), g: srgbToLinearByte(g), b: srgbToLinearByte(b) };
 	}
 
-	function lerp(a, b, t) {
-		return a + (b - a) * t;
-	}
+	function lerp(a, b, t) { return a + (b - a) * t; }
 
 	function showAlert(msg, isError = false) {
 		alertBox.textContent = msg;
@@ -66,9 +51,7 @@
 		alertBox.classList.remove('hide');
 	}
 
-	function clearAlert() {
-		alertBox.classList.add('hide');
-	}
+	function clearAlert() { alertBox.classList.add('hide'); }
 
 	function setBusy(b) {
 		spinner.classList.toggle('hide', !b);
@@ -79,22 +62,101 @@
 	function validImageType(t) {
 		return t === 'image/png' || t === 'image/jpeg' || t === 'image/jpg';
 	}
-
+	
 	function sanitizeFileName(base, ext) {
 		const clean = (base || 'image').replace(/[^a-z0-9-_]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase();
 		return `${clean||'image'}-duotone.${ext}`;
 	}
 
-	function fileBase(name) {
-		return (name || 'image').replace(/\.(png|jpg|jpeg)$/i, '');
+	function fileBase(name) { return (name || 'image').replace(/\.(png|jpg|jpeg)$/i, ''); }
+
+	function setCanvasSize(w, h) { canvas.width = w; canvas.height = h; }
+
+	function destroyBeforeAfter() {
+		if (baElem) {
+			baElem.remove();
+			baElem = null;
+		}
+		canvas.classList.remove('hide');
 	}
 
-	function setCanvasSize(w, h) {
-		canvas.width = w;
-		canvas.height = h;
+	function mountBeforeAfter() {
+
+		if (!sourceBitmap || !canvas.width || !canvas.height) return;
+		destroyBeforeAfter();
+
+		const w = canvas.width, h = canvas.height;
+
+		const ba = document.createElement('div');
+		ba.className = 'ba';
+		ba.style.setProperty('--ar', `${w} / ${h}`);
+
+		const afterC = document.createElement('canvas');
+		afterC.width = w; afterC.height = h;
+		afterC.getContext('2d').drawImage(canvas, 0, 0);
+		ba.appendChild(afterC);
+
+		const beforeC = document.createElement('canvas');
+		beforeC.width = w; beforeC.height = h;
+		beforeC.className = 'ba-before';
+		beforeC.getContext('2d').drawImage(sourceBitmap, 0, 0, w, h);
+		ba.appendChild(beforeC);
+
+		const divider = document.createElement('div');
+		divider.className = 'ba-divider';
+		const knob = document.createElement('div');
+		knob.className = 'ba-knob';
+		knob.innerHTML = `
+			<svg viewBox="0 0 24 24" aria-hidden="true">
+				<path d="M9 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2"/>
+				<path d="M15 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2"/>
+			</svg>`;
+		divider.appendChild(knob);
+		ba.appendChild(divider);
+
+		const labL = document.createElement('div'); labL.className = 'ba-label before'; labL.textContent = 'Before';
+		const labR = document.createElement('div'); labR.className = 'ba-label after';  labR.textContent = 'After';
+		ba.append(labL, labR);
+
+		const range = document.createElement('input');
+		range.type = 'range';
+		range.className = 'ba-range';
+		range.min = 0; range.max = 100; range.value = 50;
+		range.setAttribute('aria-label', 'Before–After slider');
+		ba.appendChild(range);
+
+		setPos(50);
+
+		range.addEventListener('input', () => setPos(range.value));
+
+		ba.addEventListener('pointerdown', (e) => {
+			const rect = ba.getBoundingClientRect();
+			moveFrom(e.clientX, rect);
+			ba.setPointerCapture?.(e.pointerId);
+		});
+		ba.addEventListener('pointermove', (e) => {
+			if (e.pressure === 0 && e.buttons === 0) return;
+			const rect = ba.getBoundingClientRect();
+			moveFrom(e.clientX, rect);
+		});
+
+		function moveFrom(clientX, rect) {
+			let x = Math.min(Math.max(clientX - rect.left, 0), rect.width);
+			const pct = (x / rect.width) * 100;
+			range.value = String(Math.round(pct));
+			setPos(pct);
+		}
+		function setPos(pct) {
+			ba.style.setProperty('--pos', `${pct}%`);
+		}
+
+		canvas.classList.add('hide');
+		canvasWrap.appendChild(ba);
+		baElem = ba;
 	}
 
 	function resetToInitialState() {
+		destroyBeforeAfter();
 		setCanvasSize(16, 9);
 		ctx.clearRect(0, 0, canvas.width, canvas.height);
 		downloadBtn.disabled = true;
@@ -145,6 +207,8 @@
 		downloadBtn.disabled = true;
 		tryAnotherBtn.disabled = true;
 
+		destroyBeforeAfter();
+
 		if (!validImageType(file.type)) {
 			showAlert('Unsupported file type. Please use JPG/JPEG or PNG.', true);
 			resultNote.textContent = 'Upload failed. Please try a different file.';
@@ -165,9 +229,11 @@
 			await duotoneConvert();
 
 			placeholder.classList.add('hide');
-			resultNote.textContent = 'Ready. Download to save your duotone image.';
+			resultNote.textContent = 'Drag the slider to compare. Click Download to save your duotone image.';
 			downloadBtn.disabled = !resultBlob;
 			tryAnotherBtn.disabled = !resultBlob;
+
+			mountBeforeAfter();
 		} catch (err) {
 			console.error(err);
 			showAlert('Failed to process the image. Try a different file.', true);
@@ -182,8 +248,7 @@
 	async function duotoneConvert() {
 		if (!sourceBitmap) throw new Error('No source');
 
-		const w = canvas.width,
-			h = canvas.height;
+		const w = canvas.width, h = canvas.height;
 
 		ctx.clearRect(0, 0, w, h);
 		ctx.drawImage(sourceBitmap, 0, 0, w, h);
@@ -192,14 +257,10 @@
 		const d = imgData.data;
 
 		for (let i = 0; i < d.length; i += 4) {
-			const r = d[i],
-				g = d[i + 1],
-				b = d[i + 2];
-			const rl = srgbToLinearByte(r),
-				gl = srgbToLinearByte(g),
-				bl = srgbToLinearByte(b);
+			const r = d[i], g = d[i + 1], b = d[i + 2];
+			const rl = srgbToLinearByte(r), gl = srgbToLinearByte(g), bl = srgbToLinearByte(b);
 			const Y = 0.2126 * rl + 0.7152 * gl + 0.0722 * bl;
-			d[i] = linearToSrgbByte(lerp(GREEN_LIN.r, PINK_LIN.r, Y));
+			d[i]     = linearToSrgbByte(lerp(GREEN_LIN.r, PINK_LIN.r, Y));
 			d[i + 1] = linearToSrgbByte(lerp(GREEN_LIN.g, PINK_LIN.g, Y));
 			d[i + 2] = linearToSrgbByte(lerp(GREEN_LIN.b, PINK_LIN.b, Y));
 		}
@@ -214,8 +275,7 @@
 	function canvasToBlobSameType(cv, mime) {
 		if (mime === 'image/jpeg') {
 			const tmp = document.createElement('canvas');
-			tmp.width = cv.width;
-			tmp.height = cv.height;
+			tmp.width = cv.width; tmp.height = cv.height;
 			const tctx = tmp.getContext('2d');
 			tctx.fillStyle = '#ffffff';
 			tctx.fillRect(0, 0, tmp.width, tmp.height);
@@ -242,5 +302,4 @@
 	tryAnotherBtn.addEventListener('click', () => {
 		resetToInitialState();
 	});
-
 })();

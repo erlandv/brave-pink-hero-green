@@ -324,6 +324,92 @@ code {
     display: none !important;
 }
 
+.ba {
+    --pos: 50%;
+    --ar: 1 / 1;
+    position: relative;
+    width: 100%;
+    aspect-ratio: var(--ar);
+    overflow: hidden;
+    background: #fff;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+}
+
+.ba>canvas,
+.ba>img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+}
+
+.ba .ba-before {
+    clip-path: inset(0 calc(100% - var(--pos)) 0 0);
+}
+
+.ba .ba-divider {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: var(--pos);
+    transform: translateX(-50%);
+    width: 2px;
+    background: linear-gradient(180deg, rgba(0, 0, 0, .25), rgba(255, 255, 255, .7));
+    pointer-events: none;
+}
+
+.ba .ba-knob {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    transform: translate(-50%, -50%);
+    width: 42px;
+    height: 42px;
+    border-radius: 999px;
+    background: #fff;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, .25);
+    display: grid;
+    place-items: center;
+    border: 0;
+    pointer-events: none;
+}
+
+.ba .ba-knob svg {
+    width: 18px;
+    height: 18px;
+}
+
+.ba .ba-range {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: ew-resize;
+}
+
+.ba .ba-label {
+    position: absolute;
+    top: 10px;
+    padding: 4px 8px;
+    font: 500 12px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    color: #fff;
+    background: rgba(0, 0, 0, .35);
+    border-radius: 6px;
+    backdrop-filter: blur(2px);
+    user-select: none;
+    pointer-events: none;
+}
+
+.ba .ba-label.before {
+    left: 10px;
+}
+
+.ba .ba-label.after {
+    right: 10px;
+}
+
 @media (max-width: 600px) {
     .result-bar {
         flex-direction: column;
